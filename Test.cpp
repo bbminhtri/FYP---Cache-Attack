@@ -75,9 +75,52 @@ void HexStr2CharStr(char const* pszHexStr, unsigned char* pucCharStr, int iSize)
 
 void test() {
 	
+	try
+	{
+		char szHex[33];
+		//One block testing
+		CRijndael oRijndael;
+		oRijndael.MakeKey("abcdefghabcdefgh", 16, 16);
+		char szDataIn[] = "aaaaaaaabbbbbbbb";
+		char szDataOut[17] = "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0";
+		oRijndael.EncryptBlock(szDataIn, szDataOut);
+		CharStr2HexStr((unsigned char*)szDataIn, szHex, 16);
+		cout << szHex << endl;
+		CharStr2HexStr((unsigned char*)szDataOut, szHex, 16);
+		cout << szHex << endl;
+		memset(szDataIn, 0, 16);
+		oRijndael.DecryptBlock(szDataOut, szDataIn);
+		CharStr2HexStr((unsigned char*)szDataIn, szHex, 16);
+		cout << szHex << endl;
+	}
+	catch(exception& roException)
+	{
+		cout << roException.what() << endl;
+	}
 }
 
 void cacheAttack() {
+	CRijndael studyPhase;
+	char studyKey[16];
+	for(int i = 0; i < 16; i ++)
+		studyKey[i] = 0;
+	studyPhase.MakeKey(studyKey, 16, 16);
+	
+	CRijndael attackPhase;
+	char attackKey[] = "abcdefgh12345678";
+	attackPhase.MakeKey(attackKey, 16, 16);
+	
+	int attackNum = 1;
+	for(int attackNo = 0; attackNo < attackNum; attackNo ++) {
+		char plainText[] = "12345678abcdefgh";
+		char encryptedText[16];
+		
+		long long measure1 = mach_absolute_time();
+		studyPhase.Encrypt(plainText, encryptedText, 16);
+		long long measure2 = mach_absolute_time();
+		
+		double duration_ns = (double)(measure2 - measure1) * conversion_factor;
+	}
 	
 }
 
